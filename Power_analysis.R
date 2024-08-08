@@ -50,6 +50,7 @@ ID_age_desc |>
 ID_age_desc |> 
   ggplot(aes(x = Gender, y = Age, fill = Gender)) +
   geom_rain(alpha = .5) +
+  stat_summary(fun.y = "mean", aes(color = Gender)) +
   guides(fill = 'none', color = 'none') +
   coord_flip() +
   scale_y_continuous(breaks = breaks_width(1)) +
@@ -73,6 +74,7 @@ St_ss_desc |>
 St_ss_desc |> 
   ggplot(aes(x = Stimulus_sex, y = Reported_sociosexuality, fill = Stimulus_sex)) +
   geom_rain(alpha = .5) +
+  stat_summary(fun.y = "mean", aes(color = Stimulus_sex)) +
   guides(fill = 'none', color = 'none') +
   labs(x = "Stimulus sex", y = "Reported sociosexuality") +
   scale_y_continuous(breaks = breaks_width(1)) +
@@ -97,6 +99,8 @@ ID_ss_desc |>
 ID_ss_desc |> 
   ggplot(aes(x = Gender, y = Rated_sociosexuality, fill = Stimulus_sex)) +
   geom_rain(alpha = .5) +
+  stat_summary(fun.y = "mean", aes(color = Stimulus_sex)) +
+  guides(fill = 'none', color = 'none') +
   labs(x = "Participant gender", fill = "Stimulus sex", y = "Rated sociosexuality") +
   scale_y_continuous(breaks = breaks_width(1)) +
   theme_pubclean()
