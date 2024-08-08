@@ -1,0 +1,259 @@
+---
+title: "Modelo SOI"
+author: "Juan David Leongómez"
+date: "2022-09-28"
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+      collapsed: false
+    number_sections: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cargar paquetes
+
+```{r warning = FALSE, message = FALSE}
+library(readxl)
+library(car)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(lmerTest)
+library(interactions)
+library(ggplot2)
+library(report)
+library(performance)
+library(knitr)
+library(kableExtra)
+library(tidyquant)
+library(equatiomatic)
+```
+
+# Cargar base de datos
+
+```{r warning = FALSE}
+bd <- read_excel("Base de datos_FIN.xlsx") |>
+  mutate(Sexo = recode(Sexo,
+                       "1" = "Hombre",
+                       "2" = "Mujer")) |>
+  mutate(across(where(is.character), as.factor))
+```
+
+## Estructura base de datos 
+
+```{r}
+str(bd)
+```
+
+### Tabla descriptivos jueces
+```{r message = FALSE}
+bd |>
+  drop_na(Calificacion) |>
+  group_by(`ID Participante`, Sexo) |>
+  summarise("Calificacion" = mean(Calificacion),
+            "Edad" = mean(Edad)) |>
+  group_by(Sexo) |>
+  summarise("n" = length(Sexo), 
+            "Media" = mean(Edad),
+            "DE" = sd(Edad), 
+            "Máxima" = max(Edad), 
+            "Mínima" = min(Edad),
+            "Media2" = mean(Calificacion),
+            "DE2" = sd(Calificacion), 
+            "Máxima2" = max(Calificacion), 
+            "Mínima2" = min(Calificacion)) |>
+  kable(booktabs = TRUE,
+        digits = 2,
+        caption = "Descriptivos de edad y sociosexualidad estimada por los jueces",
+        col.names = c(" ", 
+                      "n", 
+                      "Media", "DE", "Máxima", "Mínima",
+                      "Media", "DE", "Máxima", "Mínima")) |>
+  kable_classic("hover", full_width = FALSE) |>
+  add_header_above((c(" " = 2, "Edad" = 4, "Estimación sociosexualidad" = 4)))
+```
+
+### Tabla descriptivos modelos
+
+```{r message = FALSE}
+bd |>
+  group_by(Estimulo, Sexo) |>
+  summarise("SOI" = mean(SOI))  |>
+  mutate(Sexo = recode(Sexo,
+                       "Hombre" = "Mujer",
+                       "Mujer" = "Hombre")) |>
+  group_by(Sexo) |>
+  summarise("n" = length(Sexo), 
+            "Media" = mean(SOI),
+            "DE" = sd(SOI), 
+            "Máxima" = max(SOI), 
+            "Mínima" = min(SOI)) |>
+  kable(booktabs = TRUE,
+        digits = 2,
+        caption = "Descriptivos de sociosexualidad auto-reportada por los los modelos (SOI-R)") |>
+  kable_classic("hover", full_width = FALSE) |>
+  add_header_above((c(" " = 2, "SOI" = 4)))
+```
+
+# Ajustar modelo
+
+```{r}
+mod <- lmer(Calificacion ~ SOI * Canal * Sexo +
+              (1 + SOI | `ID Participante`) +
+              (1 | Estimulo),
+            data = bd,
+            control = lmerControl(optimizer = "bobyqa"))
+```
+
+## Ecuación modelo
+
+```{r}
+extract_eq(mod, wrap = TRUE, terms_per_line = 3)
+```
+
+## Ajuste y supuestos del modelo
+
+### Normalidad, linealidad y observaciones influyentes
+
+```{r}
+check_model(mod, check = "normality")
+check_model(mod, check = "reqq")
+check_model(mod, check = c("linearity", "outliers"))
+```
+
+### Colinealidad
+
+```{r}
+kable(data.frame(vif(mod)),
+      digits = 2,
+      booktabs = TRUE,
+      align = c("l", rep("c", 3)),
+      linesep = "",
+      caption = "Colinealidad",
+      col.names = c("$GVIF$",
+                    "$gl$",
+                    "$GVIF^{(\\frac{1}{(2 \\times gl)})}$"),
+      escape = FALSE) |>
+    kable_classic("hover", full_width = FALSE)
+```
+
+## Resumen del modelo
+
+```{r}
+pval.lev <- function(pvals) {
+  ifelse(pvals < 0.0001,
+         "<b>< 0.0001</b>",
+         ifelse(pvals < 0.001,
+                "<b>< 0.001</b>",
+                ifelse(pvals < 0.05,
+                       paste0("<b>", round(pvals, 4), "</b>"),
+                       round(pvals, 2))))
+}
+
+data.frame(anova(mod)) |> 
+    mutate(F.value = round(F.value, 2)) |> 
+    mutate(df = paste0(NumDF, ", ", round(DenDF, 2))) |> 
+    dplyr::select(F.value, df, Pr..F.) |>
+    mutate(Pr..F. = pval.lev(Pr..F.)) |>
+    rownames_to_column() |>
+    mutate_at("rowname", str_replace_all, ":", " × ") |>
+    kable(digits = 2,
+          booktabs = TRUE,
+          align = c("l", rep("c", 3)),
+          linesep = "",
+          caption = "Resumen del modelo",
+          col.names = c("Efecto",
+                        "$F$",
+                        "$gl$",
+                        "$p$"),
+          escape = FALSE) |>
+    kable_classic("hover", full_width = FALSE) |>
+    footnote(general = paste0("$R^2_{condicional}$ = ",
+                              round(r2_nakagawa(mod)$R2_conditional, 3),
+                              ", $R^2_{marginal}$ = ",
+                              round(r2_nakagawa(mod)$R2_marginal, 3),
+                              ". Los efectos significativos están en negrita."),
+             escape = FALSE,
+             threeparttable = TRUE,
+             footnote_as_chunk = TRUE,
+             general_title = "Nota: ")
+```
+
+## Reporte en texto
+```{r message = FALSE, warning = FALSE}
+rep.mod <- report(mod, format = "markdown")
+```
+
+`r rep.mod`
+
+## Explorar interacción Canal:SOI:Sexo
+
+Calcular correlación entre sociosexualidad auto-reportada y estimada por canal y sexo
+```{r message = FALSE, warning = FALSE, cache = TRUE}
+slopes <- sim_slopes(mod,
+                     pred = SOI,
+                     modx = Canal,
+                     mod2 = Sexo)
+
+slopes.fin <- rbind(data.frame(slopes$slopes[1]),
+             data.frame(slopes$slopes[2])) |>
+  select(1,2,4,5,7) |>
+  mutate(across(2:5, as.numeric)) |>
+  mutate(across(2:5, round, 3)) |>
+  mutate(Sexo = rep(c("Hombre", "Mujer"), each = 3)) |>
+  select(6,1:5) |>
+  rename(Canal = Value.of.Canal) |>
+  rename(r = Est.)
+
+slopes.audio <- filter(slopes.fin, Canal == "Voz")
+slopes.audiovisual <- filter(slopes.fin, Canal == "Voz + rostro")
+slopes.foto <- filter(slopes.fin, Canal == "Rostro")
+```
+
+### Figura manual hecha con `ggplot2`
+
+```{r message = FALSE, warning = FALSE, fig.cap="**Figura 1.** Efecto de la sociosexualidad auto-reportada (SOI-R) por los modelos en la Sociosexualidad estimada por los participantes, según canal y sexo."}
+ggplot(mod@frame, aes(y = predict(mod), x = SOI, color = Canal, fill = Canal)) +
+  geom_jitter(alpha = 0.1, size = 1, width = 0.1) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Sexo) +
+  geom_text(data = slopes.audio,
+            mapping = aes(x = Inf, y = -Inf,
+            vjust = -5, hjust = 1.1),
+            label = paste("r = ", slopes.audio$r, 
+                          ", IC 95%[", paste(slopes.audio$X2.5., slopes.audio$X97.5., sep = ", "), 
+                          "], p = ", slopes.audio$p),
+            color = "#619CFF", size = 3) +
+  geom_text(data = slopes.audiovisual,
+            mapping = aes(x = Inf, y = -Inf,
+            vjust = -3, hjust = 1.1),
+            label = paste("r = ", slopes.audiovisual$r, 
+                          ", IC 95%[", paste(slopes.audiovisual$X2.5., slopes.audiovisual$X97.5., sep = ", "), 
+                          "], p = ", slopes.audiovisual$p),
+            color = "#00BA38", size = 3) +
+  geom_text(data = slopes.foto,
+            mapping = aes(x = Inf, y = -Inf,
+            vjust = -1, hjust = 1.1),
+            label = paste("r = ", slopes.foto$r, 
+                          ", IC 95%[", paste(slopes.foto$X2.5., slopes.foto$X97.5., sep = ", "), 
+                          "], p = ", slopes.foto$p),
+            color = "#F8766D", size = 3) +
+  labs(x = "Sociosexualidad auto-reportada (SOI-R)",
+       y = "Sociosexualidad estimada") +
+  theme_tq()
+```
+
+# Paquetes usados (se deben citar)
+
+```{r}
+sessionInf <- report(sessionInfo())
+```
+
+`r sessionInf`
