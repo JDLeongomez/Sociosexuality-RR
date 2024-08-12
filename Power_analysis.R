@@ -51,8 +51,8 @@ ID_age_desc |>
   ggplot(aes(x = Gender, y = Age, fill = Gender)) +
   geom_rain(alpha = .5) +
   guides(fill = 'none', color = 'none') +
-  coord_flip() +
-  scale_y_continuous(breaks = breaks_width(1)) +
+  #coord_flip() +
+  scale_y_continuous(breaks = breaks_width(2)) +
   theme_pubclean()
 
 ## Reported sociosexuality----
@@ -75,7 +75,7 @@ St_ss_desc |>
   geom_rain(alpha = .5) +
   guides(fill = 'none', color = 'none') +
   labs(x = "Stimulus sex", y = "Reported sociosexuality") +
-  scale_y_continuous(breaks = breaks_width(1)) +
+  scale_y_continuous(breaks = pretty_breaks()) +
   theme_pubclean()
 
 ## Rated sociosexuality----
@@ -102,30 +102,41 @@ ID_ss_desc |>
   theme_pubclean()
 
 ## Correlation between reported and rates sociosexuality
-db |> 
-  ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
-  geom_point(alpha = 0.01) +
-  geom_smooth(method = "lm", colour = "black") +
-  guides(colour = 'none') +
-  labs(x = "Reported sociosexuality", y = "Rated sociosexuality") +
-  facet_grid(Stimulus_sex ~ Gender) +
-  scale_x_continuous(breaks = breaks_width(1)) +
-  scale_y_continuous(breaks = breaks_width(1)) +
-  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "tau", colour = "black") +
-  stat_regline_equation(label.y = 8.5, colour = "black", size = 3)
-
+#db |> 
+#  ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
+#  geom_point(alpha = 0.01) +
+#  geom_smooth(method = "lm", colour = "black") +
+#  guides(colour = 'none') +
+#  labs(x = "Reported sociosexuality", y = "Rated sociosexuality") +
+#  facet_grid(Stimulus_sex ~ Gender) +
+#  scale_x_continuous(breaks = breaks_width(1)) +
+#  scale_y_continuous(breaks = breaks_width(1)) +
+#  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "tau", colour = "black") +
+#  stat_regline_equation(label.y = 8.5, colour = "black", size = 3)
 
 db |> 
   ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
   geom_hex(bins = 10, color = "white") +
   scale_fill_gradient(low =  "#00AFBB", high = "#FC4E07") +
-  geom_xsidedensity(aes(y = after_stat(density)), colour = "grey60", fill = "grey60") +
-  geom_ysidedensity(aes(x = after_stat(density)), colour = "grey60", fill = "grey60") +
+  geom_xsidedensity(aes(y = after_stat(density)), colour = "#00AFBB", fill = "#00AFBB") +
+  geom_ysidedensity(aes(x = after_stat(density)), colour = "#00AFBB", fill = "#00AFBB") +
   geom_smooth(method = "lm", colour = "black") +
   guides(colour = 'none') +
   labs(x = "Reported sociosexuality", y = "Rated sociosexuality", fill = "Count") +
   facet_grid(Stimulus_sex ~ Gender) +
   #scale_x_continuous(breaks = breaks_width(1)) +
   #scale_y_continuous(breaks = breaks_width(1)) +
-  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "tau", colour = "black", fill = "green") +
-  stat_regline_equation(label.y = 8.5, colour = "black", size = 3)
+  stat_cor(p.accuracy = 0.001, 
+           r.accuracy = 0.01, 
+           cor.coef.name = "tau", 
+           label.y = 10,
+           geom = "label", 
+           colour = "black", 
+           fill = "white",
+           alpha = 0.7) +
+  stat_regline_equation(label.y = 8.5, 
+                        geom = "label", 
+                        colour = "black", 
+                        fill = "white",
+                        alpha = 0.7, 
+                        size = 3)
