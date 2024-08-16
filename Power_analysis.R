@@ -11,7 +11,11 @@ library(scales)
 setwd("Pilot data")
 
 # Load data----
-db <- read_excel("Base de datos_FIN.xlsx") |>
+dat_st <- read_excel("Orientación Sociosexual.xlsx") |> 
+  rename(Stimulus = Codigo,
+         Stimulus_age = Edad)
+
+dat <- read_excel("Base de datos_FIN.xlsx") |>
   mutate(Sexo = recode(Sexo,
                        "1" = "Men",
                        "2" = "Women"),
@@ -28,12 +32,14 @@ db <- read_excel("Base de datos_FIN.xlsx") |>
          "Rated_sociosexuality" = "Calificacion") |> 
   mutate(across(where(is.character), as.factor)) |> 
   mutate(Stimulus_sex = ifelse(grepl("H", Stimulus), "Male stimuli", "Female stimuli")) |> 
-  select(ID:Stimulus, Stimulus_sex, Reported_sociosexuality:Rated_sociosexuality)
+  select(ID:Stimulus, Stimulus_sex, Reported_sociosexuality:Rated_sociosexuality) |> 
+  left_join(dat_st[, c("Stimulus", "Stimulus_age")], by = "Stimulus") |> 
+  select(ID:Stimulus_sex, Stimulus_age, Reported_sociosexuality:Rated_sociosexuality)
 
 # Descriptives----
-
-## Participant age----
-ID_age_desc <- db |> 
+## Age----
+### Participant age----
+ID_age_desc <- dat |> 
   group_by(Gender, ID) |> 
   summarise(Age = mean(Age, na.rm = TRUE)) |> 
   group_by(Gender)
@@ -47,16 +53,44 @@ ID_age_desc |>
             Min = min(Age),
             Max = max(Age))
 
-ID_age_desc |> 
+### Stimulus age----
+St_age_desc <- dat |> 
+  group_by(Stimulus_sex, Stimulus) |> 
+  summarise(Age = mean(Stimulus_age, na.rm = TRUE)) |> 
+  group_by(Stimulus_sex)
+
+St_age_desc |> 
+  summarise(n = n(),
+            Mean = mean(Age),
+            SD = sd(Age),
+            Median = median(Age),
+            MAD = mad(Age),
+            Min = min(Age),
+            Max = max(Age))
+
+### Age plot----
+p_age <- ID_age_desc |> 
+  rename(cod = ID) |> 
+  mutate(role = "Raters") |> 
+  bind_rows(St_age_desc |> 
+              rename(Gender = Stimulus_sex,
+                     cod = Stimulus)) |>
   ggplot(aes(x = Gender, y = Age, fill = Gender)) +
   geom_rain(alpha = .5) +
+  scale_fill_manual(values = rep(c("#00AFBB", "#FC4E07"), times = 2)) +
+  scale_colour_manual(values = rep(c("#00AFBB", "#FC4E07"), times = 2)) +
   guides(fill = 'none', color = 'none') +
   #coord_flip() +
   scale_y_continuous(breaks = breaks_width(2)) +
-  theme_pubclean()
-
-## Reported sociosexuality----
-St_ss_desc <- db |> 
+  theme_pubclean() +
+  labs(x = NULL) +
+  facet_wrap(~role, scales = "free_x") +
+  stat_summary(fun.data = "mean_sd", linewidth = 1, size = 0.5, 
+               aes(colour = Gender))
+  
+## Sociosexuality----    
+### Reported sociosexuality----
+St_ss_desc <- dat |> 
   group_by(Stimulus_sex, Stimulus) |> 
   summarise(Reported_sociosexuality = mean(Reported_sociosexuality, na.rm = TRUE)) |> 
   group_by(Stimulus_sex)
@@ -70,16 +104,21 @@ St_ss_desc |>
             Min = min(Reported_sociosexuality),
             Max = max(Reported_sociosexuality))
 
-St_ss_desc |> 
+#### Plot----
+p_rep_ss <- St_ss_desc |> 
   ggplot(aes(x = Stimulus_sex, y = Reported_sociosexuality, fill = Stimulus_sex)) +
   geom_rain(alpha = .5) +
+  scale_fill_manual(values = c("#00AFBB", "#FC4E07")) +
+  scale_colour_manual(values = c("#00AFBB", "#FC4E07")) +
   guides(fill = 'none', color = 'none') +
   labs(x = "Stimulus sex", y = "Reported sociosexuality") +
   scale_y_continuous(breaks = pretty_breaks()) +
-  theme_pubclean()
+  theme_pubclean() +
+  stat_summary(fun.data = "mean_sd", linewidth = 1, size = 0.5, 
+               aes(colour = Stimulus_sex))
 
-## Rated sociosexuality----
-ID_ss_desc <- db |> 
+### Rated sociosexuality----
+ID_ss_desc <- dat |> 
   group_by(Gender, Stimulus_sex, ID) |> 
   summarise(Rated_sociosexuality = mean(Rated_sociosexuality, na.rm = TRUE)) |> 
   group_by(Gender, Stimulus_sex)
@@ -94,27 +133,56 @@ ID_ss_desc |>
             Min = min(Rated_sociosexuality),
             Max = max(Rated_sociosexuality))
 
-ID_ss_desc |> 
+#### Plot----
+p_rat_ss <- ID_ss_desc |> 
   ggplot(aes(x = Gender, y = Rated_sociosexuality, fill = Stimulus_sex)) +
   geom_rain(alpha = .5) +
+  scale_fill_manual(values = c("#00AFBB", "#FC4E07")) +
+  scale_colour_manual(values = c("#00AFBB", "#FC4E07")) +
+  guides(fill = 'none', color = 'none') +
   labs(x = "Participant gender", fill = "Stimulus sex", y = "Rated sociosexuality") +
   scale_y_continuous(breaks = breaks_width(1)) +
-  theme_pubclean()
+  theme_pubclean() +
+  stat_summary(fun.data = "mean_sd", 
+               linewidth = 1, size = 0.5, 
+               aes(colour = Stimulus_sex))
+
+## Combined plot----
+ggarrange(p_age,
+          ggarrange(p_rep_ss, p_rat_ss,
+                    labels = c("", "C")),
+          nrow = 2,
+          labels = "AUTO")
 
 ## Correlation between reported and rates sociosexuality
-#db |> 
-#  ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
-#  geom_point(alpha = 0.01) +
-#  geom_smooth(method = "lm", colour = "black") +
-#  guides(colour = 'none') +
-#  labs(x = "Reported sociosexuality", y = "Rated sociosexuality") +
-#  facet_grid(Stimulus_sex ~ Gender) +
-#  scale_x_continuous(breaks = breaks_width(1)) +
-#  scale_y_continuous(breaks = breaks_width(1)) +
-#  stat_cor(p.accuracy = 0.001, r.accuracy = 0.01, cor.coef.name = "tau", colour = "black") +
-#  stat_regline_equation(label.y = 8.5, colour = "black", size = 3)
+dat |> 
+  ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
+  geom_point(alpha = 0.05) +
+  geom_xsidedensity(aes(y = after_stat(density)), colour = "#00AFBB", fill = "#00AFBB") +
+  geom_ysidedensity(aes(x = after_stat(density)), colour = "#FC4E07", fill = "#FC4E07") +
+  geom_smooth(method = "lm", colour = "black") +
+  scale_colour_manual(values = c("#00AFBB", "#FC4E07")) +
+  guides(colour = 'none') +
+  labs(x = "Reported sociosexuality", y = "Rated sociosexuality") +
+  facet_grid(Stimulus_sex ~ Gender) +
+  scale_x_continuous(breaks = breaks_width(1)) +
+  scale_y_continuous(breaks = breaks_width(1)) +
+  stat_cor(p.accuracy = 0.001, 
+           r.accuracy = 0.01, 
+           cor.coef.name = "tau", 
+           label.y = 9.8,
+           geom = "label", 
+           colour = "black", 
+           fill = "white",
+           alpha = 0.7) +
+  stat_regline_equation(label.y = 8.5, 
+                        geom = "label", 
+                        colour = "black", 
+                        fill = "white",
+                        alpha = 0.7, 
+                        size = 3)
 
-db |> 
+dat |> 
   ggplot(aes(x = Reported_sociosexuality, y = Rated_sociosexuality, colour = Gender)) +
   geom_hex(bins = 10, color = "white") +
   scale_fill_gradient(low =  "#00AFBB", high = "#FC4E07") +
